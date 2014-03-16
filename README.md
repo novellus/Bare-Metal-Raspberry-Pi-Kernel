@@ -10,4 +10,4 @@ Copy the resulting kernel.img, and the contents of the disk folder (minus the li
 Pop the card into the RPI, and go.
 
 In explanation of the magic "gpio" number used in many of the kernels, the BCM2835 (RPI chipset) documentation is provided here. Specifically check out page 90+, and remember that address 0x7E200000 in that document is mapped to the physical address 0x20200000.
-https://drive.google.com/file/d/0Byd6ngUnOQEeTXdxMkE0Mkx6Rms/edit?usp=sharing
+http://www.raspberrypi.org/wp-content/uploads/2012/02/BCM2835-ARM-Peripherals.pdf Or https://drive.google.com/file/d/0Byd6ngUnOQEeTXdxMkE0Mkx6Rms/edit?usp=sharing
