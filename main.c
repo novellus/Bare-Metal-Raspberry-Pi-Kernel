@@ -15,7 +15,7 @@ volatile unsigned int i;
 #define nop32 nop16; nop16
 
 int main(void) {
-	//Enable level 1 cache, and the branch predictor! (This gives a roughly 2x speedup)
+	//Enable level 1 cache, and the branch predictor! (This gives a roughly 2x speedup, although I've been told to be careful with this.)
 	asm volatile ("MRC p15, 0, %0, c1, c0, 0" : "=r" (i));
 	i|=0x1800; 
 	asm volatile ("MCR p15, 0, %0, c1, c0, 0" :: "r" (i));
@@ -28,6 +28,7 @@ int main(void) {
 	SCLK=1<<11;
 	OUT_GPIO(11); //SCLK
 
+	//Demos ~22MHz signaling. 
 	while(1) {
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK)); //(*SET)=SCLK;
 		nop;
