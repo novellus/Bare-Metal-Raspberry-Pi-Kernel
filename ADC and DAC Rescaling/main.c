@@ -4,10 +4,12 @@ volatile unsigned int* CLR;
 volatile unsigned int* READ;
 unsigned int SCLK;
 unsigned int MISO;
-unsigned int MOSI;
-unsigned int CS1;
-unsigned int CS2;
-int adcData;
+unsigned int MOSI1;
+unsigned int MOSI2;
+unsigned int CS;
+
+int adcInput;
+unsigned int dacOutput;
 volatile unsigned int i;
 
 #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
@@ -38,70 +40,69 @@ int main(void) {
 
 	SCLK=1<<11;
 	MISO=1<<9;
-	MOSI=1<<10;
-	CS1=1<<8;
-	CS2=1<<7;
+	MOSI1=1<<10;
+	MOSI2=1<<7;
+	CS=1<<8;
 	
 	OUT_GPIO(11); //SCLK
 	INP_GPIO(9); //MISO
-	OUT_GPIO(10); //MOSI
-	OUT_GPIO(8); //CS1
-	OUT_GPIO(7); //CS2
+	OUT_GPIO(10); //MOSI1
+	OUT_GPIO(7); //MOSI2
+	OUT_GPIO(8); //CS
 
-	//Initial conditions CS's and SCLK high
+	//Initial conditions CS and SCLK high
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
-	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS1)); //CS's are active low.
-	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS2));
+	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS)); //CS is active low.
 
 	nop32; //Settling delay
 
 	//Configure ADC registers
-	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS1));
+	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS));
 	for(i=15;i>=0;i--) {
-		if(conReg&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI));}
-		else                   {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI));}
+		if(conReg&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI1));}
+		else              {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI1));}
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(SCLK)); //Data is clocked into the ADC on falling edges.
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
 	}
-	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS1));
+	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
 	nop16; //Delay twixt register writes
-	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS1));
+	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS));
 	for(i=15;i>=0;i--) {
-		if(ranReg&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI));}
-		else                   {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI));}
+		if(ranReg&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI1));}
+		else              {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI1));}
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(SCLK));
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
 	}
-	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS1));
+	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
 
 
 	while(1) {
-		adcData=0;
+		adcInput=0;
 
-		//Read Value from ADC into adcData
-		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI)); //Clear data out line to disable accidental register writes on the ADC.
-		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS1));
+		//Read Value from ADC into adcInput
+		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI1)); //Clear data out line to disable accidental register writes on the ADC.
+		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS));
 		for(i=15;i>=0;i--) {
 			asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(SCLK));
 			asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
-			adcData&=((((*READ)&MISO)>>10)<<i); //RBF Optimise?
+			adcInput&=((((*READ)&MISO)>>10)<<i); //RBF Optimise?
 		}
-		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS1));
+		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
 
 		//=============================================BEGIN DEBUG====================================================//
-		// Output adcData
+		// Output adcInput
 		for(i=15;i>=0;i--) {
 				asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(SCLK));
-				if(adcData&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI));}
-				else               {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI));}
+				if(adcInput&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI1));}
+				else                {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI1));}
 				asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
 		}
 		//=============================================End DEBUG======================================================//
 
-		adcData=(adcData&0x3FFE)<<2; //zero out the ZERO, address, and useless LSB; then format like a signed integer.
+		adcInput=(adcInput&0x3FFE)<<2; //zero out the ZERO, address, and useless LSB; then format like a signed integer.
 
 		//Output data to the DAC (MAX5312)
-		
+
 
 		nop2; //Delay between samples
 	}
