@@ -8,9 +8,9 @@ unsigned int MOSI1;
 unsigned int MOSI2;
 unsigned int CS;
 
-short adcInput;
-unsigned short dacOutput;
-volatile unsigned int i;
+volatile short adcInput;
+volatile unsigned short dacOutput;
+volatile int i;
 
 #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g) INP_GPIO(g);*(gpio+((g)/10)) |=  (1<<(((g)%10)*3))
@@ -24,7 +24,7 @@ volatile unsigned int i;
 
 //control and range registers for AD7322 (ADC)
 #define conReg 0b1000001000010000
-#define ranReg 0b1011000100000000
+#define ranReg 0b1011000100000001 /*rbf, last 1 should be 0*/
 
 
 //2.5V reference on ADC and DAC (MAX5312). ADC scales +-2.5V, and DAC scales 0->5V.
@@ -59,7 +59,7 @@ int main(void) {
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS)); //CS is active low.
 
-	nop32; //Settling delay
+	//nop32; //Settling delay
 
 	//Configure ADC registers
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS));
@@ -81,7 +81,7 @@ int main(void) {
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
 
 
-	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI1)); //Clear data out line to ADC to prevent register writes.
+	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI1)); //Clear data out line to ADC to prevent further register writes.
 	dacOutput=0;
 	while(1) {
 		adcInput=0;
@@ -99,6 +99,7 @@ int main(void) {
 
 		//Right and left shift here so the processor will take care of two's complement
 		dacOutput=((unsigned short) (((int) ((adcInput&0x3FFE)<<2)*fctnA)+fctnB))>>4; //zero out the ZERO, address, and useless LSB; then format like a signed integer. Apply linear function.
+		dacOutput=0x9249;
 		nop2; //Delay between samples
 	}
 }
