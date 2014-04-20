@@ -8,9 +8,9 @@ unsigned int MOSI1;
 unsigned int MOSI2;
 unsigned int CS;
 
-volatile short adcInput;
-volatile unsigned short dacOutput;
-volatile int i;
+unsigned short adcInput;
+unsigned short dacOutput;
+int i;
 
 #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g) INP_GPIO(g);*(gpio+((g)/10)) |=  (1<<(((g)%10)*3))
@@ -23,14 +23,14 @@ volatile int i;
 #define nop32 nop16; nop16
 
 //control and range registers for AD7322 (ADC)
-#define conReg 0b1000001000010000
-#define ranReg 0b1011000100000001 /*rbf, last 1 should be 0*/
+#define conReg 0b1000001000110000
+#define ranReg 0b1011000100000000
 
 
 //2.5V reference on ADC and DAC (MAX5312). ADC scales +-2.5V, and DAC scales 0->5V.
 //Linear function on data input: output=input*fctnA+fctnB; This should scale +-2V to 3V+-0.5V
 #define fctnA 0.25
-#define fctnB 3*(0xFFFF/5)
+#define fctnB 3*(0x0FFF/5)
 
 int main(void) {
 	//Enable level 1 cache, and the branch predictor! (This gives a roughly 2x speedup, although I've been told to be careful with this.)
@@ -93,14 +93,16 @@ int main(void) {
 			if(dacOutput&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI2));} //Output to DAC
 			else                 {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI2));} //Output to DAC
 			asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
-			adcInput|=((((*READ)&MISO)>>10)<<i); //RBF Optimise? //Input from ADC
+			volatile adcInput=adcInput|((((*READ)&MISO)>>10)<<i); //RBF Optimise? //Input from ADC
 		}
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
 
 		//Right and left shift here so the processor will take care of two's complement
-		dacOutput=((unsigned short) (((int) ((adcInput&0x3FFE)<<2)*fctnA)+fctnB))>>4; //zero out the ZERO, address, and useless LSB; then format like a signed integer. Apply linear function.
-		dacOutput=0x9249;
+		dacOutput=((adcInput&0x1FFE)>>1)*fctnA+fctnB; //zero out the ZERO, address, sign, and useless LSB; Align number. Apply linear function.
+
+		//dacOutput=0x9249; //debug
 		nop2; //Delay between samples
+
 	}
 }
 
