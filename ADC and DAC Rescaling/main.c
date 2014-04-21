@@ -10,6 +10,7 @@ unsigned int CS;
 
 unsigned short adcInput;
 unsigned short dacOutput;
+int ZERO;
 int i;
 
 #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
@@ -28,9 +29,9 @@ int i;
 
 
 //2.5V reference on ADC and DAC (MAX5312). ADC scales +-2.5V, and DAC scales 0->5V.
-//Linear function on data input: output=input*fctnA+fctnB; This should scale +-2V to 3V+-0.5V
-#define fctnA 0.25
-#define fctnB 3*(0x0FFF/5)
+//Linear function on data input: output=input/fctnA+fctnB; This should scale +-2V to 3V+-0.5V
+#define fctnA 4
+#define fctnB 0x799
 
 int main(void) {
 	//Enable level 1 cache, and the branch predictor! (This gives a roughly 2x speedup, although I've been told to be careful with this.)
@@ -83,6 +84,7 @@ int main(void) {
 
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI1)); //Clear data out line to ADC to prevent further register writes.
 	dacOutput=0;
+	ZERO=0;
 	while(1) {
 		adcInput=0;
 
@@ -92,15 +94,20 @@ int main(void) {
 			asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(SCLK));
 			if(dacOutput&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI2));} //Output to DAC
 			else                 {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI2));} //Output to DAC
+			nop8;
 			asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
-			volatile adcInput=adcInput|((((*READ)&MISO)>>10)<<i); //RBF Optimise? //Input from ADC
+			adcInput=adcInput|(((*READ)&MISO)?1<<i:0); //Input from ADC
 		}
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
 
-		//Right and left shift here so the processor will take care of two's complement
-		dacOutput=((adcInput&0x1FFE)>>1)*fctnA+fctnB; //zero out the ZERO, address, sign, and useless LSB; Align number. Apply linear function.
-
-		//dacOutput=0x9249; //debug
+		dacOutput=((adcInput&(0x1FFE))>>1)/fctnA+fctnB; //zero out the ZERO, address, sign, and useless LSB; Align number. Apply linear function.
+		if(ZERO) { //Every other output is zero.
+			dacOutput=ZERO=0; 
+		}
+		else {
+			ZERO=1;
+			nop; //nop to maintain timing.
+		}
 		nop2; //Delay between samples
 
 	}
