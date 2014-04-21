@@ -26,7 +26,8 @@ int i;
 //control and range registers for AD7322 (ADC)
 #define conReg 0b1000001000110000
 #define ranReg 0b1011000100000000
-
+//Control bits for DAC
+#define conBits 0x4000
 
 //2.5V reference on ADC and DAC (MAX5312). ADC scales +-2.5V, and DAC scales 0->5V.
 //Linear function on data input: output=input/fctnA+fctnB; This should scale +-2V to 3V+-0.5V
@@ -60,7 +61,7 @@ int main(void) {
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS)); //CS is active low.
 
-	//nop32; //Settling delay
+	nop32; //Settling delay
 
 	//Configure ADC registers
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS));
@@ -68,6 +69,7 @@ int main(void) {
 		if(conReg&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI1));}
 		else              {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI1));}
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(SCLK)); //Data is clocked into the ADC on falling edges.
+		nop8;
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
 	}
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
@@ -77,6 +79,7 @@ int main(void) {
 		if(ranReg&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI1));}
 		else              {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI1));}
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(SCLK));
+		nop8;
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
 	}
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
@@ -100,7 +103,7 @@ int main(void) {
 		}
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
 
-		dacOutput=((adcInput&(0x1FFE))>>1)/fctnA+fctnB; //zero out the ZERO, address, sign, and useless LSB; Align number. Apply linear function.
+		dacOutput=((adcInput&(0x1FFE))>>1)/fctnA+fctnB+conBits; //zero out the ZERO, address, sign, and useless LSB; Align number. Apply linear function.
 		if(ZERO) { //Every other output is zero.
 			dacOutput=ZERO=0; 
 		}
