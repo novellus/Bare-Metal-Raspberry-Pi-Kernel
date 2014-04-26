@@ -22,6 +22,10 @@ int i;
 #define nop8 nop4; nop4
 #define nop16 nop8; nop8
 #define nop32 nop16; nop16
+#define nop64 nop32; nop32
+#define nop128 nop64; nop64
+#define nop256 nop128; nop128
+#define nop512 nop256; nop256
 
 //control and range registers for AD7322 (ADC)
 #define conReg 0b1000001000110000
@@ -61,7 +65,7 @@ int main(void) {
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS)); //CS is active low.
 
-	nop32; //Settling delay
+	nop512; //Settling delay
 
 	//Configure ADC registers
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS));
@@ -73,7 +77,7 @@ int main(void) {
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
 	}
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
-	nop16; //Delay twixt register writes
+	nop512; //Delay twixt register writes
 	asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(CS));
 	for(i=15;i>=0;i--) {
 		if(ranReg&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI1));}
@@ -97,21 +101,24 @@ int main(void) {
 			asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(SCLK));
 			if(dacOutput&(1<<i)) {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(MOSI2));} //Output to DAC
 			else                 {asm volatile("str %[data], [%[reg]]" : : [reg]"r"(CLR), [data]"r"(MOSI2));} //Output to DAC
-			nop8;
+			nop64;
 			asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(SCLK));
+			nop64;
 			adcInput=adcInput|(((*READ)&MISO)?1<<i:0); //Input from ADC
 		}
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
 
-		dacOutput=((adcInput&(0x1FFE))>>1)/fctnA+fctnB+conBits; //zero out the ZERO, address, sign, and useless LSB; Align number. Apply linear function.
-		if(ZERO) { //Every other output is zero.
+		//dacOutput=adcInput; //Debugging only
+		//dacOutput=((adcInput&(0x1FFE))>>1)/fctnA+fctnB+conBits; //zero out the ZERO, address, sign, and useless LSB; Align number. Apply linear function.
+		dacOutput=(adcInput>>2)/fctnA+fctnB+conBits; //Align number & apply linear function.
+		/*if(ZERO) { //Every other output is zero.
 			dacOutput=ZERO=0; 
 		}
 		else {
 			ZERO=1;
 			nop; //nop to maintain timing.
-		}
-		nop2; //Delay between samples
+		}*/
+		nop512; //Delay between samples
 
 	}
 }
