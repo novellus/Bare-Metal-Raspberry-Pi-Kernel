@@ -108,16 +108,15 @@ int main(void) {
 		}
 		asm volatile("str %[data], [%[reg]]" : : [reg]"r"(SET), [data]"r"(CS));
 
-		//dacOutput=adcInput; //Debugging only
-		//dacOutput=((adcInput&(0x1FFE))>>1)/fctnA+fctnB+conBits; //zero out the ZERO, address, sign, and useless LSB; Align number. Apply linear function.
 		dacOutput=(adcInput>>2)/fctnA+fctnB+conBits; //Align number & apply linear function.
-		/*if(ZERO) { //Every other output is zero.
-			dacOutput=ZERO=0; 
+		if(ZERO) { //Every other output is zero.
+			ZERO=0;
+			dacOutput=0x4000;
 		}
 		else {
 			ZERO=1;
 			nop; //nop to maintain timing.
-		}*/
+		}
 		nop512; //Delay between samples
 
 	}
