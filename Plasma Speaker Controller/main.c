@@ -16,6 +16,7 @@ int i;
 #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g) INP_GPIO(g);*(gpio+((g)/10)) |=  (1<<(((g)%10)*3))
 
+//Nop's 'are necessary to meet timing requirements.
 #define nop asm volatile("nop")
 #define nop2 nop; nop
 #define nop4 nop2; nop2
